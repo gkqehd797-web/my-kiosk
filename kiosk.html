@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>키오스크 호출 화면</title>
+    <style>
+        /* 키오스크 화면 중앙에 큰 버튼을 배치하기 위한 CSS 스타일링입니다. */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+            font-family: 'Malgun Gothic', sans-serif;
+        }
+        #callButton {
+            padding: 30px 60px;
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            background-color: #ff4757;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            box-shadow: 0 10px 20px rgba(255, 71, 87, 0.3);
+            transition: transform 0.1s;
+        }
+        #callButton:active {
+            /* 버튼을 눌렀을 때 눌리는 효과를 주어 사용자에게 클릭 피드백을 제공합니다. */
+            transform: scale(0.95);
+        }
+        #statusMessage {
+            margin-top: 30px;
+            font-size: 20px;
+            color: #2f3542;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="callButton">직원 호출하기</button>
+    <div id="statusMessage">버튼을 누르면 직원이 호출됩니다.</div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        // 이 부분의 값을 사용자님이 발급받으신 Firebase 정보로 변경해 주시면 됩니다.
+        // 이 데이터는 Firebase 서버와 통신하기 위한 '주소와 열쇠' 역할을 합니다.
+        const firebaseConfig = {
+            apiKey: "사용자님의_API_KEY",
+            authDomain: "사용자님의_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://사용자님의_PROJECT_ID-default-rtdb.firebaseio.com",
+            projectId: "사용자님의_PROJECT_ID",
+            storageBucket: "사용자님의_PROJECT_ID.appspot.com",
+            messagingSenderId: "사용자님의_SENDER_ID",
+            appId: "사용자님의_APP_ID"
+        };
+
+        let app;
+        let db;
+
+        // [에러 처리] Firebase 초기화 중 발생할 수 있는 네트워크 오류 등을 잡아냅니다.
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getDatabase(app);
+            console.log("Firebase 초기화 성공!");
+        } catch (error) {
+            console.error("Firebase 초기화 중 문제가 발생했습니다. 설정 값을 확인해주세요:", error);
+            document.getElementById('statusMessage').innerText = "시스템 연결에 실패했습니다. 관리자에게 문의하세요.";
+        }
+
+        // HTML의 호출 버튼을 Javascript 변수로 가져옵니다.
+        const callBtn = document.getElementById('callButton');
+        const statusMsg = document.getElementById('statusMessage');
+
+        // 버튼에 클릭 이벤트를 연결합니다. 사용자가 버튼을 누르면 이 내부의 로직이 실행됩니다.
+        callBtn.addEventListener('click', async () => {
+            // 버튼을 중복해서 마구 누르는 것을 방지하기 위해 잠시 버튼을 비활성화합니다.
+            callBtn.disabled = true;
+            statusMsg.innerText = "호출 신호를 보내는 중입니다...";
+
+            try {
+                // 데이터베이스의 'kiosk_calls/desk_1' 위치를 가리킵니다. (마치 파일 경로를 찾는 것과 같습니다)
+                const callReference = ref(db, 'kiosk_calls/desk_1');
+                
+                // 현재 시간을 밀리초 단위로 가져옵니다. (데이터가 항상 변경되게 만들어서 관리자 PC가 변화를 감지하게 합니다)
+                const currentTime = Date.now();
+
+                // 해당 경로에 데이터를 덮어씁니다. 이 작업이 성공하면 관리자 PC의 onValue 이벤트가 발동합니다.
+                await set(callReference, {
+                    last_call_time: currentTime,
+                    message: "호출이 발생했습니다!"
+                });
+
+                statusMsg.innerText = "직원을 호출했습니다! 잠시만 기다려주세요.";
+                
+                // 3초 뒤에 다시 호출할 수 있도록 버튼 상태를 초기화합니다.
+                setTimeout(() => {
+                    callBtn.disabled = false;
+                    statusMsg.innerText = "버튼을 누르면 직원이 호출됩니다.";
+                }, 3000);
+
+            } catch (error) {
+                // 데이터베이스 쓰기 권한이 없거나 인터넷이 끊겼을 때의 에러를 처리합니다.
+                console.error("호출 데이터 전송 실패:", error);
+                statusMsg.innerText = "호출에 실패했습니다. 인터넷 연결을 확인해주세요.";
+                callBtn.disabled = false; // 에러가 나도 다시 누를 수 있게 복구합니다.
+            }
+        });
+    </script>
+</body>
+</html>
